@@ -1,6 +1,8 @@
 from card_manager import CardManager
+from smart_review import SmartReview
 import random
 import os
+from datetime import datetime
 
 class Flashcards:
     def __init__(self, card_manager: CardManager, current_set: str = None):
@@ -13,6 +15,8 @@ class Flashcards:
         """
         self.card_manager = card_manager
         self.current_set = current_set
+        self.smart_review = SmartReview()
+        self.smart_review.load_model()  # Load existing model if available
         
     def save_game_history(self, score, total, results=None):
         """
@@ -51,8 +55,13 @@ class Flashcards:
         
         print(f"\nGame history saved to {history_file}")
 
-    def game(self):
-        """Start a flashcard game with the current set."""
+    def game(self, review_due_only=True):
+        """
+        Start a flashcard game with the current set.
+        
+        Args:
+            review_due_only (bool): Whether to only show cards due for review
+        """
         if not self.current_set:
             print("\nNo flashcard set selected. Please select a set first.")
             return
@@ -61,6 +70,16 @@ class Flashcards:
         if not cards:
             print(f"\nNo cards found in set '{self.current_set}'.")
             return
+        
+        # Get cards due for review if review_due_only is True
+        if review_due_only:
+            due_cards = self.card_manager.get_due_cards(self.current_set)
+            if not due_cards:
+                print("\nNo cards are due for review! Great job!")
+                return
+            
+            # Filter cards dictionary to only include due cards
+            cards = {word: cards[word] for word in due_cards}
             
         print(f"\nStarting game with set: {self.current_set}")
         print("Type 'exit' to quit the game at any time.")
@@ -74,6 +93,8 @@ class Flashcards:
         random.shuffle(flashcard_items)
         
         for word, answer in flashcard_items:
+            current_level = self.card_manager.get_card_level(self.current_set, word)
+            
             print(f"\nWord: {word}")
             user_answer = input("Your answer: ")
             
@@ -89,12 +110,20 @@ class Flashcards:
                 score += 1
             else:
                 print(f"Incorrect. The correct answer is: {answer}")
+            
+            # Update card level and schedule next review
+            new_level = self.smart_review.update_card_level(word, self.current_set, correct)
+            next_review = self.smart_review.get_next_review_time(word, self.current_set, new_level)
+            self.card_manager.update_card_schedule(self.current_set, word, next_review, new_level)
         
         print("\n" + "-" * 40)
         print(f"Game over! Your score: {score}/{total}")
         print(f"Accuracy: {(score/total)*100:.2f}%")
         
         self.save_game_history(score, total, results)
+        
+        # Try to train/update the model with new data
+        self.smart_review.train_model()
 
 def clear_screen():
     """Clear the terminal screen."""
@@ -108,6 +137,26 @@ def print_menu(title: str, options: list):
     for i, option in enumerate(options, 1):
         print(f"{i}. {option}")
     print("-" * 40)
+
+def format_next_review(next_review_str):
+    """Format the next review time string."""
+    if not next_review_str:
+        return "Not scheduled"
+    
+    next_review = datetime.fromisoformat(next_review_str)
+    now = datetime.now()
+    
+    if next_review <= now:
+        return "Due now"
+    
+    delta = next_review - now
+    hours = delta.total_seconds() / 3600
+    
+    if hours < 24:
+        return f"In {int(hours)} hour{'s' if hours != 1 else ''}"
+    else:
+        days = int(hours / 24)
+        return f"In {days} day{'s' if days != 1 else ''}"
 
 def manage_sets(card_manager: CardManager):
     """Menu for managing flashcard sets."""
@@ -160,9 +209,11 @@ def manage_sets(card_manager: CardManager):
                     info = card_manager.get_set_info(set_name)
                     cards = len(info["cards"])
                     desc = info["description"] or "No description"
+                    due_cards = len(card_manager.get_due_cards(set_name))
                     print(f"\n{set_name}:")
                     print(f"  Description: {desc}")
-                    print(f"  Cards: {cards}")
+                    print(f"  Total cards: {cards}")
+                    print(f"  Cards due for review: {due_cards}")
             input("\nPress Enter to continue...")
             
         elif choice == "4":
@@ -251,7 +302,11 @@ def manage_cards(card_manager: CardManager, set_name: str):
             else:
                 print("\nAvailable cards:")
                 for word, answer in cards.items():
+                    level = card_manager.get_card_level(set_name, word)
+                    next_review = card_manager.card_sets[set_name]["next_reviews"][word]
                     print(f"{word} -> {answer}")
+                    print(f"  Level: {level}")
+                    print(f"  Next review: {format_next_review(next_review)}\n")
             input("\nPress Enter to continue...")
             
         elif choice == "5":
@@ -271,21 +326,27 @@ def main():
         )
         
         options = [
-            "Play game",
+            "Play game (due cards only)",
+            "Practice all cards",
             "Select flashcard set",
             "Manage sets",
             "Manage cards",
+            "Train ML model",
             "Exit"
         ]
         print_menu(f"Flashcards Menu{current_set_info}", options)
         
-        choice = input("Enter your choice (1-5): ")
+        choice = input("Enter your choice (1-7): ")
         
         if choice == "1":
-            flashcards.game()
+            flashcards.game(review_due_only=True)
             input("\nPress Enter to continue...")
             
         elif choice == "2":
+            flashcards.game(review_due_only=False)
+            input("\nPress Enter to continue...")
+            
+        elif choice == "3":
             sets = card_manager.get_sets()
             if not sets:
                 print("\nNo sets available! Please create a set first.")
@@ -294,7 +355,8 @@ def main():
                 
             print("\nAvailable sets:")
             for i, set_name in enumerate(sets, 1):
-                print(f"{i}. {set_name}")
+                due_cards = len(card_manager.get_due_cards(set_name))
+                print(f"{i}. {set_name} ({due_cards} cards due)")
             
             try:
                 idx = int(input("\nEnter set number to select: ")) - 1
@@ -307,17 +369,25 @@ def main():
                 print("\nPlease enter a valid number!")
             input("\nPress Enter to continue...")
             
-        elif choice == "3":
+        elif choice == "4":
             manage_sets(card_manager)
             
-        elif choice == "4":
+        elif choice == "5":
             if not flashcards.current_set:
                 print("\nPlease select a set first!")
                 input("\nPress Enter to continue...")
                 continue
             manage_cards(card_manager, flashcards.current_set)
             
-        elif choice == "5":
+        elif choice == "6":
+            print("\nTraining ML model...")
+            if flashcards.smart_review.train_model():
+                print("Model trained successfully!")
+            else:
+                print("Not enough data to train model. Keep practicing!")
+            input("\nPress Enter to continue...")
+            
+        elif choice == "7":
             print("\nThanks for playing! Goodbye!")
             break
         

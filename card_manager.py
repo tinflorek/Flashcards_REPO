@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Dict, List, Optional
+from datetime import datetime
 
 class CardManager:
     def __init__(self, file_path: str = "flashcard_sets.json"):
@@ -41,7 +42,9 @@ class CardManager:
         
         self.card_sets[set_name] = {
             "description": description,
-            "cards": {}
+            "cards": {},
+            "card_levels": {},  # Store Leitner system levels
+            "next_reviews": {}  # Store next review times
         }
         self._save_card_sets()
         return True
@@ -79,6 +82,8 @@ class CardManager:
             return False
         
         self.card_sets[set_name]["cards"][word] = answer
+        self.card_sets[set_name]["card_levels"][word] = 0  # Initialize at level 0
+        self.card_sets[set_name]["next_reviews"][word] = datetime.now().isoformat()
         self._save_card_sets()
         return True
     
@@ -97,6 +102,8 @@ class CardManager:
             return False
         
         del self.card_sets[set_name]["cards"][word]
+        del self.card_sets[set_name]["card_levels"][word]
+        del self.card_sets[set_name]["next_reviews"][word]
         self._save_card_sets()
         return True
     
@@ -117,10 +124,17 @@ class CardManager:
             return False
         
         if new_word and new_word != word:
+            # Transfer card data to new word
             self.card_sets[set_name]["cards"][new_word] = (
                 new_answer if new_answer else self.card_sets[set_name]["cards"][word]
             )
+            self.card_sets[set_name]["card_levels"][new_word] = self.card_sets[set_name]["card_levels"][word]
+            self.card_sets[set_name]["next_reviews"][new_word] = self.card_sets[set_name]["next_reviews"][word]
+            
+            # Remove old word data
             del self.card_sets[set_name]["cards"][word]
+            del self.card_sets[set_name]["card_levels"][word]
+            del self.card_sets[set_name]["next_reviews"][word]
         elif new_answer:
             self.card_sets[set_name]["cards"][word] = new_answer
             
@@ -154,4 +168,53 @@ class CardManager:
             Dict or None: Cards if set exists, None otherwise
         """
         set_info = self.card_sets.get(set_name)
-        return set_info["cards"] if set_info else None 
+        return set_info["cards"] if set_info else None
+    
+    def get_due_cards(self, set_name: str) -> List[str]:
+        """
+        Get list of cards due for review.
+        
+        Args:
+            set_name (str): Name of the set
+            
+        Returns:
+            List[str]: List of words due for review
+        """
+        if set_name not in self.card_sets:
+            return []
+            
+        now = datetime.now()
+        return [
+            word for word, next_review in self.card_sets[set_name]["next_reviews"].items()
+            if datetime.fromisoformat(next_review) <= now
+        ]
+    
+    def update_card_schedule(self, set_name: str, word: str, next_review: datetime, new_level: int):
+        """
+        Update a card's schedule and level.
+        
+        Args:
+            set_name (str): Name of the set
+            word (str): The word to update
+            next_review (datetime): Next review time
+            new_level (int): New Leitner system level
+        """
+        if set_name in self.card_sets and word in self.card_sets[set_name]["cards"]:
+            self.card_sets[set_name]["next_reviews"][word] = next_review.isoformat()
+            self.card_sets[set_name]["card_levels"][word] = new_level
+            self._save_card_sets()
+    
+    def get_card_level(self, set_name: str, word: str) -> int:
+        """
+        Get a card's current level.
+        
+        Args:
+            set_name (str): Name of the set
+            word (str): The word to check
+            
+        Returns:
+            int: Current level of the card
+        """
+        if set_name in self.card_sets and word in self.card_sets[set_name]["card_levels"]:
+            return self.card_sets[set_name]["card_levels"][word]
+        return 0 
