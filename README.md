@@ -1,10 +1,13 @@
 # Flashcards
 
-A simple command-line flashcard application written in Python for learning and memorization.
+A feature-rich command-line flashcard application written in Python for learning and memorization.
 
 ## Features
 
 - Interactive flashcard game in the terminal
+- Multiple flashcard sets support
+- Card management system (add, edit, remove cards)
+- Set management (create, delete, view sets)
 - Tracks game history and saves results to CSV
 - Case-insensitive answer checking
 - Ability to exit game at any time
@@ -17,23 +20,52 @@ A simple command-line flashcard application written in Python for learning and m
 python main.py
 ```
 
-2. The game will present you with words, and you need to provide their translations
-3. Type 'exit' at any time to end the game
-4. Game results will be saved automatically to `flashcard_history.csv`
+2. Main Menu Options:
+   - Play game: Start a flashcard game with the selected set
+   - Select flashcard set: Choose which set to use
+   - Manage sets: Create, delete, or view flashcard sets
+   - Manage cards: Add, remove, edit, or view cards in the current set
+   - Exit: Close the application
+
+3. Managing Sets:
+   - Create new sets with optional descriptions
+   - Delete existing sets
+   - View all sets with their descriptions and card counts
+
+4. Managing Cards:
+   - Add new cards to the current set
+   - Remove cards from the current set
+   - Edit existing cards (word and/or answer)
+   - View all cards in the current set
+
+5. Playing the Game:
+   - Select a flashcard set
+   - Answer prompts for each card
+   - Get immediate feedback on correct/incorrect answers
+   - View final score and accuracy
+   - Game results are automatically saved to `flashcard_history.csv`
 
 ## Project Structure
 
-- `main.py` - Main application file containing the Flashcards class
+- `main.py` - Main application file with menu system and game logic
+- `card_manager.py` - Card management system implementation
+- `flashcard_sets.json` - Stores all flashcard sets and their cards
 - `flashcard_history.csv` - Generated file containing game history and statistics
 - `requirements.txt` - Project dependencies (currently using only standard library)
 
+## Data Storage
+
+- Flashcard sets and cards are stored in `flashcard_sets.json`
+- Game history is saved to `flashcard_history.csv`
+- Both files are created automatically when needed
+
 ## Example
 
-The default flashcard set includes Spanish translations:
-- apple → manzana
-- hello → hola
-- goodbye → adiós
-- cat → gato
-- dog → perro
+Create different sets for different subjects or languages:
+- Spanish Vocabulary
+- French Phrases
+- Math Formulas
+- Programming Concepts
+- Historical Dates
 
-You can modify the cards dictionary in `main.py` to create your own flashcard set. 
+Each set can contain any number of cards with questions/words and their corresponding answers/translations. 

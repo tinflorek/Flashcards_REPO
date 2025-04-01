@@ -32,4 +32,5 @@ ENV/
 *.swo
 
 # Project specific
-flashcard_history.csv 
+flashcard_history.csv
+flashcard_sets.json 
