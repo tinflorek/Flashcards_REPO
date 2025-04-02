@@ -32,5 +32,9 @@ ENV/
 *.swo
 
 # Project specific
+models/
+*.csv
+*.joblib
+!requirements.txt
 flashcard_history.csv
 flashcard_sets.json 
